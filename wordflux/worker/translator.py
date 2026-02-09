@@ -4,6 +4,7 @@ import os
 from wordflux.document.document import RunInfo, TextSegment, TableCellSegment, ChartSegment, SmartArtSegment
 from wordflux.utils.decorator import timer, log_errors
 from wordflux.utils.openai_client import OpenAIClientManager
+from wordflux.utils.gemini_client import GeminiClientManager
 from wordflux.utils.prompt_builder import PromptBuilder
 import logging
 import re
@@ -14,9 +15,9 @@ logging.basicConfig(level=logging.WARNING)
 
 
 class Translator:
-    """Dịch nội dung từ checkpoint file sử dụng OpenAI API với async"""
+    """Dịch nội dung từ checkpoint file sử dụng OpenAI API hoặc Gemini API với async"""
 
-    def __init__(self, checkpoint_file: str, openai_api_key: str, model: str = "gpt-4o-mini", source_lang: str = "English", target_lang: str = "Vietnamese", max_chunk_size: int = 5000, max_concurrent: int = 100, base_url: str = None):
+    def __init__(self, checkpoint_file: str, api_key: str, model: str = "gpt-4o-mini", source_lang: str = "English", target_lang: str = "Vietnamese", max_chunk_size: int = 5000, max_concurrent: int = 100, base_url: str = None, provider: str = "openai"):
         """
         Khởi tạo Translator
 
@@ -25,13 +26,19 @@ class Translator:
             config_path: Đường dẫn đến config file (mặc định: config.yaml)
         """
         self.checkpoint_file = checkpoint_file
+        self.provider = provider
+        self.api_key = api_key
+        self.model = model
 
-        # Khởi tạo OpenAI client manager
-        self.client_manager = OpenAIClientManager(openai_api_key=openai_api_key, base_url=base_url)
-        self.client = self.client_manager.get_client()
+        # Khởi tạo client manager based on provider
+        if self.provider == "gemini":
+             self.client_manager = GeminiClientManager(api_key=self.api_key)
+             self.client = self.client_manager.get_client()
+        else:
+             self.client_manager = OpenAIClientManager(openai_api_key=self.api_key, base_url=base_url)
+             self.client = self.client_manager.get_client()
 
         # Load config
-        self.model = model
         self.source_lang = source_lang
         self.target_lang = target_lang
         self.max_chunk_size = max_chunk_size
@@ -45,17 +52,41 @@ class Translator:
         self.semaphore = asyncio.Semaphore(self.max_concurrent)
 
     async def _translate_text(self, text: str, context: str = "general") -> str:
-        """Dịch một đoạn text sử dụng OpenAI API"""
+        """Dịch một đoạn text sử dụng API"""
         async with self.semaphore:
+            # Simple rate limiting delay
+            if self.provider == "gemini":
+                # Add a small delay for Gemini to avoid hitting rate limits too quickly
+                await asyncio.sleep(1.0) 
+            elif "free" in self.model: # or check for other tiers if known
+                # Add a delay for free tier models or if user requests it
+                 await asyncio.sleep(0.5)
+
             try:
-                messages = self.prompt_builder.build_messages(text)
+                system_prompt = self.prompt_builder.build_system_prompt()
+                user_prompt = self.prompt_builder.build_user_prompt(text)
 
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                )
+                if self.provider == "gemini":
+                    # Gemini implementation
+                    model_instance = self.client.GenerativeModel(
+                        model_name=self.model,
+                        system_instruction=system_prompt
+                    )
+                    
+                    # Run the generate_content calls in a thread pool executor because the library is synchronous (or use async version if available)
+                    # For google-generativeai, it has an async method generate_content_async
+                    response = await model_instance.generate_content_async(user_prompt)
+                    return response.text.strip()
+                else:
+                    # OpenAI implementation
+                    messages = self.prompt_builder.build_messages(text)
 
-                return response.choices[0].message.content.strip()
+                    response = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                    )
+
+                    return response.choices[0].message.content.strip()
             except Exception as e:
                 self.logger.error(f"   ⚠️  Translation error: {e}")
                 return text  # Trả về text gốc nếu có lỗi
@@ -357,16 +388,6 @@ class Translator:
         # Update progress if callback provided
         if progress_callback:
             progress_callback()
-
-    async def _translate_smartart_segments(self, smartart_segments: list[SmartArtSegment], progress_callback=None):
-        """Dịch tất cả SmartArt segments, nhóm theo smartart_idx"""
-        grouped_smartarts = self._group_smartarts_by_idx(smartart_segments)
-        self.logger.info(f"🎨 Grouped {len(smartart_segments)} elements into {len(grouped_smartarts)} SmartArts")
-
-        tasks = [self._translate_smartart(smartart_idx, elements, progress_callback) for smartart_idx, elements in grouped_smartarts.items()]
-
-        self.logger.info(f"🚀 Translating {len(tasks)} SmartArts with max {self.max_concurrent} concurrent requests...")
-        await asyncio.gather(*tasks)
 
     async def _translate_all(self):
         """Hàm async chính để dịch tất cả - CHẠY SONG SONG"""

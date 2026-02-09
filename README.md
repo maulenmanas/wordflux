@@ -1,8 +1,8 @@
 # WordFlux 🌀
 
-> **Translate DOCX using OpenAI - Preserve Format**
+> **Translate DOCX using OpenAI / Gemini - Preserve Format**
 
-WordFlux is a powerful and intelligent tool for translating Microsoft Word documents (.docx) using OpenAI API while preserving the original formatting, structure, and layout completely.
+WordFlux is a powerful and intelligent tool for translating Microsoft Word documents (.docx) using OpenAI or Gemini API while preserving the original formatting, structure, and layout completely.
 <img width="1565" height="997" alt="image" src="https://github.com/user-attachments/assets/dc2ae795-75c4-4a63-a4ef-2fa29d12dcfb" />
 
 
@@ -12,7 +12,7 @@ WordFlux is a powerful and intelligent tool for translating Microsoft Word docum
 
 ### System Requirements
 - Python 3.12+
-- OpenAI API key
+- OpenAI API key or Google Gemini API key
 
 ### Install from pip
 
@@ -22,7 +22,7 @@ pip install wordflux
 
 ## 🔑 API Key Setup
 
-After installation, you need to set up your OpenAI API key. 
+After installation, you need to set up your OpenAI or Gemini API key. 
 
 ```python
 from wordflux import DocxTranslator
@@ -32,6 +32,7 @@ translator = DocxTranslator(
     input_file="complex_document.docx",
     output_dir="./translated_docs",
     openai_api_key="sk-your-openai-api-key-here",
+    gemini_api_key="your-gemini-api-key-here",  # For Gemini users
     model="gpt-5",                    # Use more powerful model
     source_lang="English",
     target_lang="French",
@@ -71,6 +72,7 @@ Create a `config.yaml` file in the root directory:
 ```yaml
 # OpenAI Configuration
 openai_api_key: "sk-your-openai-api-key-here"  # Replace with your API key
+gemini_api_key: "your-gemini-api-key-here"    # For Gemini users
 model: "gpt-4o-mini"  # Can use gpt-4, gpt-3.5-turbo, etc.
 
 # Translation Settings

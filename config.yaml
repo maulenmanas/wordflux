@@ -1,9 +1,11 @@
 openai_api_key: "" # Your OpenAI API key here
-model: "gpt-4o-mini" # Default model is gpt-4o-mini. But you can change it to other models like gpt-5, gpt-5-mini, gpt-5-nano, etc.
+gemini_api_key: "" # Your Gemini API key here
+provider: "gemini" # "openai" or "gemini"
+model: "gemini-2.5-flash" # Default model is gpt-4o-mini. For gemini, use "gemini-1.5-flash" or similar.
 
 # Translation Settings
-source_lang: "English"
-target_lang: "Vietnamese"
+source_lang: "Russian"
+target_lang: "Kazakh"
 
 # Performance Settings
 max_concurrent: 100
