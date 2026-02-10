@@ -13,7 +13,7 @@ class DocxTranslator:
     Facebook: https://www.facebook.com/pnnbao
     """
 
-    def __init__(self, input_file: str, output_dir: str = "output", api_key: str = "", model: str = "gpt-4o-mini", source_lang: str = "English", target_lang: str = "Vietnamese", max_chunk_size: int = 5000, max_concurrent: int = 100, base_url: str = None, provider: str = "openai"):
+    def __init__(self, input_file: str, output_dir: str = "output", api_key: str = "", model: str = "gpt-4o-mini", source_lang: str = "English", target_lang: str = "Vietnamese", max_chunk_size: int = 5000, max_concurrent: int = 100, base_url: str = None, provider: str = "openai", rpm_limit: int = 0, tpm_limit: int = 0):
         self.input_file = input_file
         self.output_dir = output_dir
         self.api_key = api_key
@@ -24,6 +24,8 @@ class DocxTranslator:
         self.max_concurrent = max_concurrent
         self.base_url = base_url
         self.provider = provider
+        self.rpm_limit = rpm_limit
+        self.tpm_limit = tpm_limit
 
         if not self.api_key:
              raise ValueError(f"{self.provider.capitalize()} API key not found. Please provide a valid API key.")
@@ -38,7 +40,7 @@ class DocxTranslator:
 
         # Initialize pipeline components
         self.extractor = Extractor(self.input_file, self.checkpoint_file)
-        self.translator = Translator(self.checkpoint_file, self.api_key, self.model, self.source_lang, self.target_lang, self.max_chunk_size, self.max_concurrent, self.base_url, self.provider)
+        self.translator = Translator(self.checkpoint_file, self.api_key, self.model, self.source_lang, self.target_lang, self.max_chunk_size, self.max_concurrent, self.base_url, self.provider, self.rpm_limit, self.tpm_limit)
         self.injector = Injector(self.input_file, self.checkpoint_file, self.output_file)
 
     def translate(self):

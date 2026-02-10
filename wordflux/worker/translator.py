@@ -6,6 +6,7 @@ from wordflux.utils.decorator import timer, log_errors
 from wordflux.utils.openai_client import OpenAIClientManager
 from wordflux.utils.gemini_client import GeminiClientManager
 from wordflux.utils.prompt_builder import PromptBuilder
+from wordflux.utils.rate_limiter import RateLimiter
 import logging
 import re
 from collections import defaultdict
@@ -17,7 +18,7 @@ logging.basicConfig(level=logging.WARNING)
 class Translator:
     """Dịch nội dung từ checkpoint file sử dụng OpenAI API hoặc Gemini API với async"""
 
-    def __init__(self, checkpoint_file: str, api_key: str, model: str = "gpt-4o-mini", source_lang: str = "English", target_lang: str = "Vietnamese", max_chunk_size: int = 5000, max_concurrent: int = 100, base_url: str = None, provider: str = "openai"):
+    def __init__(self, checkpoint_file: str, api_key: str, model: str = "gpt-4o-mini", source_lang: str = "English", target_lang: str = "Vietnamese", max_chunk_size: int = 5000, max_concurrent: int = 100, base_url: str = None, provider: str = "openai", rpm_limit: int = 0, tpm_limit: int = 0):
         """
         Khởi tạo Translator
 
@@ -43,7 +44,10 @@ class Translator:
         self.target_lang = target_lang
         self.max_chunk_size = max_chunk_size
         self.max_concurrent = max_concurrent
+        self.rpm_limit = rpm_limit
+        self.tpm_limit = tpm_limit
 
+        self.rate_limiter = RateLimiter(rpm=self.rpm_limit, tpm=self.tpm_limit) if (self.rpm_limit > 0 or self.tpm_limit > 0) else None
 
         # Khởi tạo prompt builder
         self.prompt_builder = PromptBuilder(self.source_lang, self.target_lang)
@@ -57,25 +61,35 @@ class Translator:
             # Simple rate limiting delay
             if self.provider == "gemini":
                 # Add a small delay for Gemini to avoid hitting rate limits too quickly
-                await asyncio.sleep(1.0) 
+                await asyncio.sleep(0.1) 
             elif "free" in self.model: # or check for other tiers if known
                 # Add a delay for free tier models or if user requests it
                  await asyncio.sleep(0.5)
+
+            # Estimate tokens strictly for rate limiting (rough heuristic: 1 char ~= 0.25-0.3 tokens, keep safe margin 0.5)
+            # Or just use len(text) / 2
+            # Gemini models generally have large context windows, but let's be safe.
+            # 1M tokens PM is huge. 
+            # We want to maximize each request.
+            estimated_tokens = int(len(text) / 2.5) + 200 # +200 for system prompt overhead
+            
+            if self.rate_limiter:
+                # This will wait until both RPM and TPM are satisfied.
+                # If RPM is full, it waits. If TPM is full, it waits.
+                await self.rate_limiter.acquire(estimated_tokens)
 
             try:
                 system_prompt = self.prompt_builder.build_system_prompt()
                 user_prompt = self.prompt_builder.build_user_prompt(text)
 
                 if self.provider == "gemini":
-                    # Gemini implementation
-                    model_instance = self.client.GenerativeModel(
-                        model_name=self.model,
-                        system_instruction=system_prompt
-                    )
+                    # Gemini implementation using google-genai SDK
                     
-                    # Run the generate_content calls in a thread pool executor because the library is synchronous (or use async version if available)
-                    # For google-generativeai, it has an async method generate_content_async
-                    response = await model_instance.generate_content_async(user_prompt)
+                    response = await self.client.aio.models.generate_content(
+                        model=self.model,
+                        contents=user_prompt,
+                        config={"system_instruction": system_prompt}
+                    )
                     return response.text.strip()
                 else:
                     # OpenAI implementation
@@ -113,6 +127,13 @@ class Translator:
         if current_chunk:
             chunks.append(current_chunk)
 
+        # Smart chunk grouping to maximize RPM usage
+        # This function only created chunks based on size.
+        # The logic below in _translate_text_segments sends these chunks in parallel.
+        # If we have high Max Concurrent but Low RPM, we will hit rate limits immediately 
+        # because we try to fire 100 requests at once, but RateLimiter will serialization them 
+        # to 1 request every 6s (if RPM=10/60s).
+        
         return chunks
 
     def _create_marked_text_from_runs(self, runs_list: list[RunInfo], prefix: str, idx: str) -> tuple[str, list[int]]:

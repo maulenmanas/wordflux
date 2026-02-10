@@ -1,4 +1,5 @@
-import google.generativeai as genai
+from google import genai
+from google.genai.types import GenerateContentConfig
 import logging
 import asyncio
 
@@ -15,9 +16,8 @@ class GeminiClientManager:
         if not self.api_key:
             raise ValueError("Gemini API key not found. Please check your config.yaml file.")
         
-        genai.configure(api_key=self.api_key)
-        self.client = genai
+        self.client = genai.Client(api_key=self.api_key)
 
     def get_client(self):
-        """Trả về Gemini client module (since it's module level configuration mostly)"""
+        """Trả về Gemini client object"""
         return self.client

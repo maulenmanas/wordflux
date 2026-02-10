@@ -52,6 +52,8 @@ def main():
     max_chunk_size = config.get("max_chunk_size")
     max_concurrent = config.get("max_concurrent")
     base_url = config.get("openai_api_base_url")
+    rpm_limit = config.get("rpm_limit", 0)
+    tpm_limit = config.get("tpm_limit", 0)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -82,7 +84,7 @@ def main():
         spinner = Spinner(f"Translate {file_name}")
         spinner.start()
         try:
-            docx_translator = DocxTranslator(doc_path, output_dir, api_key, model, source_lang, target_lang, max_chunk_size, max_concurrent, base_url, provider)
+            docx_translator = DocxTranslator(doc_path, output_dir, api_key, model, source_lang, target_lang, max_chunk_size, max_concurrent, base_url, provider, rpm_limit, tpm_limit)
             docx_translator.translate()
             spinner.stop()
             print(f"✅ Completed: {file_name}\n→ Output: {docx_translator.get_output_path()}\n")
