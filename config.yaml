@@ -1,5 +1,5 @@
 openai_api_key: "" # Your OpenAI API key here
-gemini_api_key: "" # Your Gemini API key here
+gemini_api_key: "AIzaSyAn2c0SbHZUqggt_p_9YQ3sdtwdXgcYUE8" # Your Gemini API key here
 provider: "gemini" # "openai" or "gemini"
 model: "gemini-2.5-flash" # Default model is gpt-4o-mini. For gemini, use "gemini-1.5-flash" or similar.
 
@@ -9,11 +9,11 @@ target_lang: "Kazakh"
 
 # Performance Settings
 max_concurrent: 100
-max_chunk_size: 150000 # Increased chunk size for better efficiency with high TPM
+max_chunk_size: 1500000 # Increased chunk size for better efficiency with high TPM
 
 # Rate Limiting (Gemini Free Tier Defaults)
 # Gemini 2.0 Flash / 1.5 Flash Free Tier limits:
 # 15 RPM (Requests per minute)
 # 1,000,000 TPM (Tokens per minute)
-rpm_limit: 10      # Slightly lower than 15 for safety
-tpm_limit: 1000000
+rpm_limit: 5      # Slightly lower than 15 for safety
+tpm_limit: 250000
